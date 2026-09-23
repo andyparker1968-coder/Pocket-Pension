@@ -100,7 +100,7 @@
     <div class="projection-results"><div class="result-grid" id="results"></div></div>
   </section>
 
-  <section class="panel chart-panel"><div class="panel-head"><h2>Fund value over time</h2></div><div class="chart-wrap" id="chart-wrap"></div><div class="legend" id="chart-legend"><span><i class="acc"></i>Portfolio history</span><span><i class="draw"></i>Average-growth forecast</span><span><i class="retire"></i>Retirement</span><span><i class="lump"></i>Lump sum withdrawal</span></div></section>
+  <section class="panel chart-panel"><div class="panel-head"><h2>Fund value over time</h2></div><div class="chart-wrap" id="chart-wrap"></div><div class="legend" id="chart-legend"><span><i class="acc"></i>Historical average growth</span><span><i class="draw"></i>Projection from start date</span><span><i class="retire"></i>Retirement</span><span><i class="lump"></i>Lump sum withdrawal</span></div></section>
   <div class="appearance-tools"><button type="button" class="appearance-link" id="appearance-toggle" aria-expanded="false">Customise appearance</button><div class="appearance-panel hidden" id="appearance-panel"><div class="appearance-grid"><div class="field"><label for="theme-background">Background</label><input id="theme-background" type="color"></div><div class="field"><label for="theme-card">Panels</label><input id="theme-card" type="color"></div><div class="field"><label for="theme-text">Text</label><input id="theme-text" type="color"></div><div class="field"><label for="theme-accent">Accent</label><input id="theme-accent" type="color"></div><div class="field"><label for="theme-font">Font style</label><select id="theme-font"><option value="classic">Classic</option><option value="modern">Modern</option><option value="rounded">Rounded</option><option value="mono">Monospace</option></select></div><div class="field check-field"><label for="theme-heading-bold">Heading weight</label><label class="check-line" for="theme-heading-bold"><input id="theme-heading-bold" type="checkbox"><span>Bold headings</span></label></div></div><div class="appearance-actions"><button type="button" class="button" id="appearance-reset">Reset appearance</button></div></div></div>
   <p class="footer">This is a self-contained Pocket Pension page. It works offline, saves edits in this browser, and only contacts the Yahoo-backed service when you search or click Refresh prices.</p>
 </div></main></div>
@@ -211,8 +211,7 @@ function renderResults(pr){
 }
 function formatMonths(m){if(!Number.isFinite(m)||m<0)return"indefinitely";const y=Math.floor(m/12),mo=Math.floor(m%12);return y===0?`${mo} month${mo===1?"":"s"}`:mo===0?`${y} year${y===1?"":"s"}`:`${y} yr ${mo} mo`}
 function earliestPortfolioDate(){
-  return [...state.holdings.map(h=>h.purchaseDate),...state.cashItems.map(c=>c.depositDate)]
-    .filter(Boolean).sort()[0]||state.projection.projectionStartDate||todayISO();
+  return state.holdings.map(h=>h.purchaseDate).filter(Boolean).sort()[0]||state.projection.projectionStartDate||todayISO();
 }
 function cashValueAt(item,date){
   if(!item.depositDate||date<item.depositDate)return 0;
@@ -239,8 +238,7 @@ function buildPortfolioHistory(histories,from){
       const price=historicalPriceAt(bySymbol[String(h.ticker||"").toUpperCase()],date,h);
       return price===null?sum:sum+n(h.shares)*n(price);
     },0);
-    const cash=state.cashItems.reduce((sum,item)=>sum+cashValueAt(item,date),0);
-    return {date,value:investments+cash};
+    return {date,value:investments};
   }).filter(point=>point.value>0);
   if(points.length){
     const current=totals().total;
@@ -249,7 +247,7 @@ function buildPortfolioHistory(histories,from){
   }
   const first=points[0],last=points[points.length-1],months=first&&last?monthsBetween(first.date,last.date):0;
   const rate=first&&last&&first.value>0&&last.value>0&&months>0?(Math.pow(last.value/first.value,12/months)-1)*100:null;
-  return {from:first?.date||from,points,rate};
+  return {version:3,from:first?.date||from,points,rate};
 }
 async function refreshPortfolioHistory(fresh=false){
   const symbols=state.holdings.map(h=>h.ticker).filter(Boolean);
@@ -277,9 +275,9 @@ function renderChart(pr){
   if(!yearTicks.length||yearTicks.at(-1).m!==model.totalMonths){const m=model.totalMonths,label=String(dateAfterMonths(m,model.chartStart).getFullYear());if(yearTicks.at(-1)?.label!==label)yearTicks.push({m,label})}
   const xAxis=`<line x1="${left}" x2="${width-right}" y1="${top+plotH}" y2="${top+plotH}" class="chart-axis-line"/>${yearTicks.map((tick,i)=>`<line x1="${x(tick.m)}" x2="${x(tick.m)}" y1="${top+plotH}" y2="${top+plotH+5}" class="chart-axis-line"/><text x="${x(tick.m)}" y="${height-15}" text-anchor="${i===0?"start":i===yearTicks.length-1?"end":"middle"}" class="chart-axis">${tick.label}</text>`).join("")}`;
   const marker=(month,label,value,color,lane=0)=>{if(month===null||month===undefined||month<0||month>model.totalMonths)return"";const anchor=month>model.totalMonths*.72?"end":"start",dx=anchor==="end"?-6:6,yy=top+12+lane*29;return`<line x1="${x(month)}" x2="${x(month)}" y1="${top}" y2="${top+plotH}" stroke="${color}" stroke-width="1.5" stroke-dasharray="5 5"/><text x="${x(month)+dx}" y="${yy}" text-anchor="${anchor}" class="chart-marker" fill="${color}"><tspan x="${x(month)+dx}">${esc(label)}</tspan><tspan x="${x(month)+dx}" dy="12" class="chart-marker-value">${esc(money(value))}</tspan></text>`};
-  const todayMonth=model.historyMonths;
-  if(model.historyMonths>0){const rate=state.history?.rate;document.getElementById("chart-legend").innerHTML=`<span><i class="acc"></i>Portfolio history</span><span><i class="draw"></i>Average-growth forecast${Number.isFinite(rate)?` (${rate.toFixed(1)}% pa)`:""}</span><span><i class="retire"></i>Retirement</span><span><i class="lump"></i>Lump sum withdrawal</span>`}
-  return`<svg class="pension-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Portfolio history from the earliest recorded date through today, followed by an average-growth retirement forecast. Hover or touch the chart for a date and fund value."><g>${grids}</g>${xAxis}${marker(todayMonth,"Today",pr.total,"var(--fg)",0)}${marker(model.historyMonths+pr.drawdownMonths,"Drawdown start"+ageText(pr.drawdownDate),pr.atDrawdownStart,"var(--blue)",1)}${marker(model.historyMonths+pr.retirementMonths,"Retirement"+ageText(pr.retirementDate),pr.atRetirement,"var(--accent)",2)}${marker(model.historyMonths+pr.lumpMonth,"Lump sum"+ageText(state.projection.lumpSumWithdrawalDate),valueAtMonth(pr,pr.lumpMonth,true),"var(--danger)",3)}${model.historical.length>1?`<path d="${path(model.historical)}" fill="none" stroke="var(--blue)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`:""}<path d="${path(model.projected)}" fill="none" stroke="var(--danger)" stroke-width="2.5" stroke-dasharray="7 5" stroke-linecap="round" stroke-linejoin="round"/><g id="chart-tooltip" class="chart-tooltip hidden"><line id="chart-tooltip-line" y1="${top}" y2="${top+plotH}" stroke="var(--fg)" stroke-width="1" stroke-dasharray="3 3"/><circle id="chart-tooltip-dot" r="5" fill="var(--card)" stroke="var(--blue)" stroke-width="3"/><rect id="chart-tooltip-box" width="150" height="42" rx="9" fill="var(--fg)" opacity=".94"/><text id="chart-tooltip-date" y="16" fill="var(--card)" font-size="10" font-family="var(--mono)"></text><text id="chart-tooltip-value" y="32" fill="var(--card)" font-size="12" font-weight="700" font-family="var(--mono)"></text></g><rect class="chart-hit" x="${left}" y="${top}" width="${plotW}" height="${plotH}" fill="transparent"/></svg>`
+  const todayMonth=model.historyMonths,rate=state.history?.rate;
+  document.getElementById("chart-legend").innerHTML=`<span><i class="acc"></i>Historical average growth${Number.isFinite(rate)?` (${rate.toFixed(1)}% pa)`:""}</span><span><i class="draw"></i>Projection from start date</span><span><i class="retire"></i>Retirement</span><span><i class="lump"></i>Lump sum withdrawal</span>`;
+  return`<svg class="pension-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Historical average portfolio growth through the projection start date, followed by the pension projection. Hover or touch the chart for a date and fund value."><g>${grids}</g>${xAxis}${marker(todayMonth,"Projection start",pr.total,"var(--fg)",0)}${marker(model.historyMonths+pr.drawdownMonths,"Drawdown start"+ageText(pr.drawdownDate),pr.atDrawdownStart,"var(--blue)",1)}${marker(model.historyMonths+pr.retirementMonths,"Retirement"+ageText(pr.retirementDate),pr.atRetirement,"var(--accent)",2)}${marker(pr.lumpMonth===null?null:model.historyMonths+pr.lumpMonth,"Lump sum"+ageText(state.projection.lumpSumWithdrawalDate),valueAtMonth(pr,pr.lumpMonth,true),"var(--danger)",3)}${model.historical.length>1?`<path d="${path(model.historical)}" fill="none" stroke="var(--blue)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`:""}<path d="${path(model.projected)}" fill="none" stroke="var(--danger)" stroke-width="2.5" stroke-dasharray="7 5" stroke-linecap="round" stroke-linejoin="round"/><g id="chart-tooltip" class="chart-tooltip hidden"><line id="chart-tooltip-line" y1="${top}" y2="${top+plotH}" stroke="var(--fg)" stroke-width="1" stroke-dasharray="3 3"/><circle id="chart-tooltip-dot" r="5" fill="var(--card)" stroke="var(--blue)" stroke-width="3"/><rect id="chart-tooltip-box" width="150" height="42" rx="9" fill="var(--fg)" opacity=".94"/><text id="chart-tooltip-date" y="16" fill="var(--card)" font-size="10" font-family="var(--mono)"></text><text id="chart-tooltip-value" y="32" fill="var(--card)" font-size="12" font-weight="700" font-family="var(--mono)"></text></g><rect class="chart-hit" x="${left}" y="${top}" width="${plotW}" height="${plotH}" fill="transparent"/></svg>`
 }
 function setupChartInteraction(pr){
   const svg=document.querySelector(".pension-chart"),hit=svg?.querySelector(".chart-hit"),tip=svg?.querySelector("#chart-tooltip");if(!svg||!hit||!tip)return;
@@ -358,6 +356,7 @@ document.getElementById("lumpSumWithdrawalDate").addEventListener("change",event
   saveState();render();setLiveStatus("Lump sum updated to 25% of the projected fund. You can amend the amount.")
 });
 render();
+if(API_BASE&&state.holdings.length&&(!state.history||state.history.version!==3||state.history.from!==earliestPortfolioDate()))void refreshPortfolioHistory(false).catch(()=>{});
 </script>
 </body>
 </html>
