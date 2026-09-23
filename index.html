@@ -43,6 +43,10 @@
       max-height: 390px;
       aspect-ratio: 920 / 360;
     }
+    .pension-chart .chart-axis {
+      font-size: 12px;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -96,7 +100,7 @@
     <div class="projection-results"><div class="result-grid" id="results"></div></div>
   </section>
 
-  <section class="panel chart-panel"><div class="panel-head"><h2>Fund value over time</h2></div><div class="chart-wrap" id="chart-wrap"></div><div class="legend"><span><i class="acc"></i>Fund value</span><span><i class="drawdown-marker"></i>Drawdown start</span><span><i class="retire"></i>Retirement</span><span><i class="lump"></i>Lump sum withdrawal</span></div></section>
+  <section class="panel chart-panel"><div class="panel-head"><h2>Fund value over time</h2></div><div class="chart-wrap" id="chart-wrap"></div><div class="legend" id="chart-legend"><span><i class="acc"></i>Portfolio history</span><span><i class="draw"></i>Average-growth forecast</span><span><i class="retire"></i>Retirement</span><span><i class="lump"></i>Lump sum withdrawal</span></div></section>
   <div class="appearance-tools"><button type="button" class="appearance-link" id="appearance-toggle" aria-expanded="false">Customise appearance</button><div class="appearance-panel hidden" id="appearance-panel"><div class="appearance-grid"><div class="field"><label for="theme-background">Background</label><input id="theme-background" type="color"></div><div class="field"><label for="theme-card">Panels</label><input id="theme-card" type="color"></div><div class="field"><label for="theme-text">Text</label><input id="theme-text" type="color"></div><div class="field"><label for="theme-accent">Accent</label><input id="theme-accent" type="color"></div><div class="field"><label for="theme-font">Font style</label><select id="theme-font"><option value="classic">Classic</option><option value="modern">Modern</option><option value="rounded">Rounded</option><option value="mono">Monospace</option></select></div><div class="field check-field"><label for="theme-heading-bold">Heading weight</label><label class="check-line" for="theme-heading-bold"><input id="theme-heading-bold" type="checkbox"><span>Bold headings</span></label></div></div><div class="appearance-actions"><button type="button" class="button" id="appearance-reset">Reset appearance</button></div></div></div>
   <p class="footer">This is a self-contained Pocket Pension page. It works offline, saves edits in this browser, and only contacts the Yahoo-backed service when you search or click Refresh prices.</p>
 </div></main></div>
@@ -206,23 +210,82 @@ function renderResults(pr){
   return`<div class="result-card positive"><p class="eyebrow">Pot at retirement</p><p class="result-value positive-text">${money(pr.atRetirement)}</p><p class="result-note">${dateText(pr.retirementDate)}${retirementAge===null?"":` · Age ${retirementAge}`} · starts with ${money(pr.total)} on ${dateText(pr.projectionStartDate)}.</p></div><div class="result-card"><p class="eyebrow">Net growth after charges</p><p class="result-value">${pr.growth.toFixed(2)}%</p><p class="result-note">${n(state.projection.annualFundGrowth).toFixed(2)}% growth less ${n(state.projection.fundChargesPct).toFixed(3)}% charges${startAge===null||retirementAge===null?"":` · Age ${startAge} to ${retirementAge}`}.</p></div><div class="result-card ${pr.result==="sustainable"?"positive":pr.result==="depletes"?"warning":""}"><p class="eyebrow">Retirement income result</p><p class="result-value">${pr.result==="no-income"?"—":pr.result==="sustainable"?"Sustainable":"Lasts "+formatMonths(pr.depletionMonth-pr.drawdownMonths)}</p><p class="result-note">${resultText}${pr.result==="depletes"&&depletionAge!==null?` Age ${depletionAge}.`:pr.result==="sustainable"&&endAge!==null?` Through age ${endAge}.`:""}</p></div><div class="result-card"><p class="eyebrow">Value after retirement target</p><p class="result-value">${money(pr.endValue)}</p><p class="result-note">${dateText(endDate)}${endAge===null?"":` · Age ${endAge}`}${pr.lumpAmount>0?` · ${money(pr.lumpAmount)} withdrawn${lumpAge===null?"":` at age ${lumpAge}`}`:""}.</p></div>`
 }
 function formatMonths(m){if(!Number.isFinite(m)||m<0)return"indefinitely";const y=Math.floor(m/12),mo=Math.floor(m%12);return y===0?`${mo} month${mo===1?"":"s"}`:mo===0?`${y} year${y===1?"":"s"}`:`${y} yr ${mo} mo`}
+function earliestPortfolioDate(){
+  return [...state.holdings.map(h=>h.purchaseDate),...state.cashItems.map(c=>c.depositDate)]
+    .filter(Boolean).sort()[0]||state.projection.projectionStartDate||todayISO();
+}
+function cashValueAt(item,date){
+  if(!item.depositDate||date<item.depositDate)return 0;
+  const months=monthsBetween(item.depositDate,date),rate=monthlyRate(item.annualInterestPct),base=n(item.amount);
+  if(months<=0)return base;
+  const factor=rate>0?Math.pow(1+rate,months):1;
+  const deposits=rate>0?n(item.monthlyDeposit)*(1+rate)*(factor-1)/rate:n(item.monthlyDeposit)*months;
+  return base*factor+deposits;
+}
+function historicalPriceAt(prices,date,holding){
+  const available=(prices||[]).filter(point=>point.date<=date&&n(point.close)>0);
+  if(!available.length)return null;
+  const raw=available[available.length-1].close,lastRaw=n(prices[prices.length-1]?.close),saved=n(holding?.savedPrice);
+  const source=String(holding?.sourceCurrency||"");
+  const scale=(source==="GBp"||(saved>0&&lastRaw/saved>20))?0.01:1;
+  return n(raw)*scale;
+}
+function buildPortfolioHistory(histories,from){
+  const bySymbol=Object.fromEntries((Array.isArray(histories)?histories:[]).map(item=>[String(item.symbol||"").toUpperCase(),item.points||[]]));
+  const dates=new Set([from,todayISO()]);
+  Object.values(bySymbol).forEach(points=>points.forEach(point=>{if(point.date)dates.add(point.date)}));
+  const points=[...dates].sort().map(date=>{
+    const investments=state.holdings.reduce((sum,h)=>{
+      const price=historicalPriceAt(bySymbol[String(h.ticker||"").toUpperCase()],date,h);
+      return price===null?sum:sum+n(h.shares)*n(price);
+    },0);
+    const cash=state.cashItems.reduce((sum,item)=>sum+cashValueAt(item,date),0);
+    return {date,value:investments+cash};
+  }).filter(point=>point.value>0);
+  if(points.length){
+    const current=totals().total;
+    if(points[points.length-1].date===todayISO())points[points.length-1].value=current;
+    else points.push({date:todayISO(),value:current});
+  }
+  const first=points[0],last=points[points.length-1],months=first&&last?monthsBetween(first.date,last.date):0;
+  const rate=first&&last&&first.value>0&&last.value>0&&months>0?(Math.pow(last.value/first.value,12/months)-1)*100:null;
+  return {from:first?.date||from,points,rate};
+}
+async function refreshPortfolioHistory(fresh=false){
+  const symbols=state.holdings.map(h=>h.ticker).filter(Boolean);
+  if(!symbols.length)return null;
+  const from=earliestPortfolioDate();
+  const histories=await fetchJson("/api/market/history-monthly?symbols="+encodeURIComponent(symbols.join(","))+"&from="+encodeURIComponent(from),fresh);
+  const history=buildPortfolioHistory(histories,from);
+  if(history.points.length>1){state.history=history;saveState();render()}
+  return history;
+}
+function chartModel(pr){
+  const history=state.history&&Array.isArray(state.history.points)?state.history:null;
+  const chartStart=history?.from||pr.projectionStartDate;
+  const historyMonths=history?monthsBetween(chartStart,pr.projectionStartDate):0;
+  const historical=history?history.points.map(point=>({m:monthsBetween(chartStart,point.date),v:point.value,date:point.date})).filter(point=>point.m<=historyMonths):[];
+  const projected=pr.points.map(point=>({m:historyMonths+point.m,v:point.v,date:dateAfterMonths(point.m,pr.projectionStartDate)}));
+  const points=[...historical,...projected.filter(point=>!historical.some(item=>item.m===point.m))].sort((a,b)=>a.m-b.m);
+  return {chartStart,historyMonths,historical,projected,points,totalMonths:historyMonths+pr.totalMonths};
+}
 function renderChart(pr){
-  const width=920,height=360,left=78,right=18,top=28,bottom=48,plotW=width-left-right,plotH=height-top-bottom,step=Math.max(1,Math.floor(pr.totalMonths/55)),points=[];
-  for(let m=0;m<=pr.totalMonths;m+=step)points.push({m,v:valueAtMonth(pr,m,true)});if(points.at(-1)?.m!==pr.totalMonths)points.push({m:pr.totalMonths,v:pr.endValue});
-  const max=Math.max(1,...points.map(p=>p.v))*1.08,x=m=>left+(m/Math.max(1,pr.totalMonths))*plotW,y=v=>top+(1-v/max)*plotH,path=points.map((p,i)=>`${i?"L":"M"} ${x(p.m).toFixed(1)} ${y(Math.max(0,p.v)).toFixed(1)}`).join(" ");
+  const model=chartModel(pr),width=920,height=360,left=78,right=18,top=28,bottom=48,plotW=width-left-right,plotH=height-top-bottom,max=Math.max(1,...model.points.map(p=>p.v))*1.08,x=m=>left+(m/Math.max(1,model.totalMonths))*plotW,y=v=>top+(1-v/max)*plotH,path=series=>series.map((p,i)=>`${i?"L":"M"} ${x(p.m).toFixed(1)} ${y(Math.max(0,p.v)).toFixed(1)}`).join(" ");
   const grids=[0,.25,.5,.75,1].map(f=>{const yy=top+f*plotH,val=max*(1-f);return`<line x1="${left}" x2="${width-right}" y1="${yy}" y2="${yy}" class="chart-grid"/><text x="${left-9}" y="${yy+4}" text-anchor="end" class="chart-axis">${esc(money(val))}</text>`}).join("");
-  const years=Math.max(1,Math.ceil(pr.totalMonths/12)),yearStep=years>14?2:1,yearTicks=[];
-  for(let m=0;m<=pr.totalMonths;m+=12*yearStep){const label=String(dateAfterMonths(m,pr.projectionStartDate).getFullYear());if(yearTicks.at(-1)?.label!==label)yearTicks.push({m,label})}
-  if(!yearTicks.length||yearTicks.at(-1).m!==pr.totalMonths){const m=pr.totalMonths,label=String(dateAfterMonths(m,pr.projectionStartDate).getFullYear());if(yearTicks.at(-1)?.label!==label)yearTicks.push({m,label})}
+  const years=Math.max(1,Math.ceil(model.totalMonths/12)),yearStep=years>30?4:years>14?2:1,yearTicks=[];
+  for(let m=0;m<=model.totalMonths;m+=12*yearStep){const label=String(dateAfterMonths(m,model.chartStart).getFullYear());if(yearTicks.at(-1)?.label!==label)yearTicks.push({m,label})}
+  if(!yearTicks.length||yearTicks.at(-1).m!==model.totalMonths){const m=model.totalMonths,label=String(dateAfterMonths(m,model.chartStart).getFullYear());if(yearTicks.at(-1)?.label!==label)yearTicks.push({m,label})}
   const xAxis=`<line x1="${left}" x2="${width-right}" y1="${top+plotH}" y2="${top+plotH}" class="chart-axis-line"/>${yearTicks.map((tick,i)=>`<line x1="${x(tick.m)}" x2="${x(tick.m)}" y1="${top+plotH}" y2="${top+plotH+5}" class="chart-axis-line"/><text x="${x(tick.m)}" y="${height-15}" text-anchor="${i===0?"start":i===yearTicks.length-1?"end":"middle"}" class="chart-axis">${tick.label}</text>`).join("")}`;
-  const marker=(month,label,value,color,lane=0)=>{if(month===null||month===undefined||month<0||month>pr.totalMonths)return"";const anchor=month>pr.totalMonths*.72?"end":"start",dx=anchor==="end"?-6:6,yy=top+12+lane*29;return`<line x1="${x(month)}" x2="${x(month)}" y1="${top}" y2="${top+plotH}" stroke="${color}" stroke-width="1.5" stroke-dasharray="5 5"/><text x="${x(month)+dx}" y="${yy}" text-anchor="${anchor}" class="chart-marker" fill="${color}"><tspan x="${x(month)+dx}">${esc(label)}</tspan><tspan x="${x(month)+dx}" dy="12" class="chart-marker-value">${esc(money(value))}</tspan></text>`};
-  return`<svg class="pension-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Retirement projection by calendar year. Hover or touch the chart for a date and fund value."><g>${grids}</g>${xAxis}${marker(pr.drawdownMonths,"Drawdown start"+ageText(pr.drawdownDate),pr.atDrawdownStart,"var(--blue)",0)}${marker(pr.retirementMonths,"Retirement"+ageText(pr.retirementDate),pr.atRetirement,"var(--accent)",1)}${marker(pr.lumpMonth,"Lump sum"+ageText(state.projection.lumpSumWithdrawalDate),valueAtMonth(pr,pr.lumpMonth,true),"var(--danger)",2)}<path d="${path}" fill="none" stroke="var(--blue)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><g id="chart-tooltip" class="chart-tooltip hidden"><line id="chart-tooltip-line" y1="${top}" y2="${top+plotH}" stroke="var(--fg)" stroke-width="1" stroke-dasharray="3 3"/><circle id="chart-tooltip-dot" r="5" fill="var(--card)" stroke="var(--blue)" stroke-width="3"/><rect id="chart-tooltip-box" width="150" height="42" rx="9" fill="var(--fg)" opacity=".94"/><text id="chart-tooltip-date" y="16" fill="var(--card)" font-size="10" font-family="var(--mono)"></text><text id="chart-tooltip-value" y="32" fill="var(--card)" font-size="12" font-weight="700" font-family="var(--mono)"></text></g><rect class="chart-hit" x="${left}" y="${top}" width="${plotW}" height="${plotH}" fill="transparent"/></svg>`
+  const marker=(month,label,value,color,lane=0)=>{if(month===null||month===undefined||month<0||month>model.totalMonths)return"";const anchor=month>model.totalMonths*.72?"end":"start",dx=anchor==="end"?-6:6,yy=top+12+lane*29;return`<line x1="${x(month)}" x2="${x(month)}" y1="${top}" y2="${top+plotH}" stroke="${color}" stroke-width="1.5" stroke-dasharray="5 5"/><text x="${x(month)+dx}" y="${yy}" text-anchor="${anchor}" class="chart-marker" fill="${color}"><tspan x="${x(month)+dx}">${esc(label)}</tspan><tspan x="${x(month)+dx}" dy="12" class="chart-marker-value">${esc(money(value))}</tspan></text>`};
+  const todayMonth=model.historyMonths;
+  if(model.historyMonths>0){const rate=state.history?.rate;document.getElementById("chart-legend").innerHTML=`<span><i class="acc"></i>Portfolio history</span><span><i class="draw"></i>Average-growth forecast${Number.isFinite(rate)?` (${rate.toFixed(1)}% pa)`:""}</span><span><i class="retire"></i>Retirement</span><span><i class="lump"></i>Lump sum withdrawal</span>`}
+  return`<svg class="pension-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Portfolio history from the earliest recorded date through today, followed by an average-growth retirement forecast. Hover or touch the chart for a date and fund value."><g>${grids}</g>${xAxis}${marker(todayMonth,"Today",pr.total,"var(--fg)",0)}${marker(model.historyMonths+pr.drawdownMonths,"Drawdown start"+ageText(pr.drawdownDate),pr.atDrawdownStart,"var(--blue)",1)}${marker(model.historyMonths+pr.retirementMonths,"Retirement"+ageText(pr.retirementDate),pr.atRetirement,"var(--accent)",2)}${marker(model.historyMonths+pr.lumpMonth,"Lump sum"+ageText(state.projection.lumpSumWithdrawalDate),valueAtMonth(pr,pr.lumpMonth,true),"var(--danger)",3)}${model.historical.length>1?`<path d="${path(model.historical)}" fill="none" stroke="var(--blue)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`:""}<path d="${path(model.projected)}" fill="none" stroke="var(--danger)" stroke-width="2.5" stroke-dasharray="7 5" stroke-linecap="round" stroke-linejoin="round"/><g id="chart-tooltip" class="chart-tooltip hidden"><line id="chart-tooltip-line" y1="${top}" y2="${top+plotH}" stroke="var(--fg)" stroke-width="1" stroke-dasharray="3 3"/><circle id="chart-tooltip-dot" r="5" fill="var(--card)" stroke="var(--blue)" stroke-width="3"/><rect id="chart-tooltip-box" width="150" height="42" rx="9" fill="var(--fg)" opacity=".94"/><text id="chart-tooltip-date" y="16" fill="var(--card)" font-size="10" font-family="var(--mono)"></text><text id="chart-tooltip-value" y="32" fill="var(--card)" font-size="12" font-weight="700" font-family="var(--mono)"></text></g><rect class="chart-hit" x="${left}" y="${top}" width="${plotW}" height="${plotH}" fill="transparent"/></svg>`
 }
 function setupChartInteraction(pr){
   const svg=document.querySelector(".pension-chart"),hit=svg?.querySelector(".chart-hit"),tip=svg?.querySelector("#chart-tooltip");if(!svg||!hit||!tip)return;
-  const left=78,right=18,top=28,width=920,height=360,plotW=width-left-right,plotH=height-top-48,max=Math.max(1,...pr.points.map(p=>p.v))*1.08;
-  const show=event=>{const rect=svg.getBoundingClientRect(),clientX=event.touches?.[0]?.clientX??event.clientX,svgX=(clientX-rect.left)*width/rect.width,month=Math.max(0,Math.min(pr.totalMonths,Math.round((svgX-left)/plotW*pr.totalMonths))),value=valueAtMonth(pr,month,true),px=left+(month/Math.max(1,pr.totalMonths))*plotW,py=top+(1-value/max)*plotH,boxX=px>width-190?px-158:px+8;
-    tip.classList.remove("hidden");svg.querySelector("#chart-tooltip-line").setAttribute("x1",px);svg.querySelector("#chart-tooltip-line").setAttribute("x2",px);svg.querySelector("#chart-tooltip-dot").setAttribute("cx",px);svg.querySelector("#chart-tooltip-dot").setAttribute("cy",py);svg.querySelector("#chart-tooltip-box").setAttribute("x",boxX);svg.querySelector("#chart-tooltip-box").setAttribute("y",Math.max(top,py-50));svg.querySelector("#chart-tooltip-date").setAttribute("x",boxX+10);svg.querySelector("#chart-tooltip-date").setAttribute("y",Math.max(top,py-50)+16);svg.querySelector("#chart-tooltip-date").textContent=dateText(dateAfterMonths(month,pr.projectionStartDate));svg.querySelector("#chart-tooltip-value").setAttribute("x",boxX+10);svg.querySelector("#chart-tooltip-value").setAttribute("y",Math.max(top,py-50)+33);svg.querySelector("#chart-tooltip-value").textContent=money(value)};
+  const model=chartModel(pr),left=78,top=28,width=920,height=360,plotW=width-left-18,plotH=height-top-48,max=Math.max(1,...model.points.map(p=>p.v))*1.08;
+  const show=event=>{const rect=svg.getBoundingClientRect(),clientX=event.touches?.[0]?.clientX??event.clientX,svgX=(clientX-rect.left)*width/rect.width,month=Math.max(0,Math.min(model.totalMonths,Math.round((svgX-left)/plotW*model.totalMonths))),point=model.points.reduce((best,item)=>Math.abs(item.m-month)<Math.abs(best.m-month)?item:best,model.points[0]),value=point?.v||0,px=left+(month/Math.max(1,model.totalMonths))*plotW,py=top+(1-value/max)*plotH,boxX=px>width-190?px-158:px+8;
+     tip.classList.remove("hidden");svg.querySelector("#chart-tooltip-line").setAttribute("x1",px);svg.querySelector("#chart-tooltip-line").setAttribute("x2",px);svg.querySelector("#chart-tooltip-dot").setAttribute("cx",px);svg.querySelector("#chart-tooltip-dot").setAttribute("cy",py);svg.querySelector("#chart-tooltip-box").setAttribute("x",boxX);svg.querySelector("#chart-tooltip-box").setAttribute("y",Math.max(top,py-50));svg.querySelector("#chart-tooltip-date").setAttribute("x",boxX+10);svg.querySelector("#chart-tooltip-date").setAttribute("y",Math.max(top,py-50)+16);svg.querySelector("#chart-tooltip-date").textContent=dateText(point?.date||dateAfterMonths(month,model.chartStart));svg.querySelector("#chart-tooltip-value").setAttribute("x",boxX+10);svg.querySelector("#chart-tooltip-value").setAttribute("y",Math.max(top,py-50)+33);svg.querySelector("#chart-tooltip-value").textContent=money(value)};
   hit.addEventListener("pointermove",show);hit.addEventListener("pointerdown",show);hit.addEventListener("pointerleave",()=>tip.classList.add("hidden"))
 }
 function openModal(kind,id=null){const existing=kind==="holding"?state.holdings.find(x=>x.id===id)||{}:state.cashItems.find(x=>x.id===id)||{};modal={kind,id,draft:{...existing},results:[],quote:null,status:""};render()}
@@ -245,7 +308,7 @@ async function quoteFor(symbol){const quotes=await addDisplayPrices(await fetchJ
 async function refreshPrices(){
   const button=document.getElementById("refresh-prices");if(!state.holdings.length){setLiveStatus("Add a holding first",true);return}
   button.disabled=true;button.textContent="Refreshing…";setLiveStatus("Fetching Yahoo prices…");
-  try{const quotes=await addDisplayPrices(await fetchJson("/api/market/quote?symbols="+encodeURIComponent(state.holdings.map(h=>h.ticker).join(",")),true),true),bySymbol=Object.fromEntries(quotes.map(q=>[String(q.symbol).toUpperCase(),q]));let updated=0;state.holdings=state.holdings.map(h=>{const q=bySymbol[String(h.ticker).toUpperCase()];if(!q||!Number.isFinite(q.displayPrice))return h;updated++;return{...h,displayName:h.displayName||q.shortName||q.longName||h.ticker,savedPrice:q.displayPrice,nativePrice:q.nativePrice,sourceCurrency:q.currency,quoteCurrency:state.currency,priceUpdatedAt:q.asOf||new Date().toISOString(),dayChangePercent:n(q.changePercent)}});saveState();render();const closed=quotes.length&&quotes.every(q=>String(q.marketState||"").toUpperCase()!=="REGULAR");setLiveStatus(`${updated} price${updated===1?"":"s"} refreshed${closed?" · latest available close":""}`)}catch(error){setLiveStatus(error.message||"Live refresh unavailable",true)}finally{button.disabled=false;button.textContent="Refresh prices"}
+  try{const quotes=await addDisplayPrices(await fetchJson("/api/market/quote?symbols="+encodeURIComponent(state.holdings.map(h=>h.ticker).join(",")),true),true),bySymbol=Object.fromEntries(quotes.map(q=>[String(q.symbol).toUpperCase(),q]));let updated=0;state.holdings=state.holdings.map(h=>{const q=bySymbol[String(h.ticker).toUpperCase()];if(!q||!Number.isFinite(q.displayPrice))return h;updated++;return{...h,displayName:h.displayName||q.shortName||q.longName||h.ticker,savedPrice:q.displayPrice,nativePrice:q.nativePrice,sourceCurrency:q.currency,quoteCurrency:state.currency,priceUpdatedAt:q.asOf||new Date().toISOString(),dayChangePercent:n(q.changePercent)}});saveState();let history=null;try{history=await refreshPortfolioHistory(true)}catch(_){/* Keep the refreshed prices if historical data is unavailable. */}render();const closed=quotes.length&&quotes.every(q=>String(q.marketState||"").toUpperCase()!=="REGULAR");const historyNote=history?.rate!==null&&history?.rate!==undefined?` · average growth ${history.rate.toFixed(1)}% pa`:"";setLiveStatus(`${updated} price${updated===1?"":"s"} refreshed${closed?" · latest available close":""}${historyNote}`)}catch(error){setLiveStatus(error.message||"Live refresh unavailable",true)}finally{button.disabled=false;button.textContent="Refresh prices"}
 }
 async function searchYahoo(){
   const form=document.getElementById("holding-form"),formData=new FormData(form),query=String(formData.get("ticker")||"").trim();if(!query)return;
