@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Pocket Pension — an offline retirement portfolio tracker and projection tool.">
-  <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon.png?v=chart-icon-20260922">
-  <link rel="shortcut icon" href="./icons/favicon.ico?v=chart-icon-20260922">
-  <link rel="icon" type="image/png" sizes="180x180" href="./icons/apple-touch-icon.png?v=chart-icon-20260922">
-  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=chart-icon-20260922">
-  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="./icons/apple-touch-icon.png?v=chart-icon-20260922">
+  <link rel="icon" type="image/png" sizes="32x32" href="./apple-touch-icon.png?v=chart-icon-20260922">
+  <link rel="shortcut icon" href="./apple-touch-icon.png?v=chart-icon-20260922">
+  <link rel="icon" type="image/png" sizes="180x180" href="./apple-touch-icon.png?v=chart-icon-20260922">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=chart-icon-20260922">
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="./apple-touch-icon.png?v=chart-icon-20260922">
   <title>Pocket Pension · Offline copy</title>
   <style>
     :root{--bg:#ffffff;--fg:#000000;--card:#c2c2c2;--border:#ded8cb;--muted:#e7e2d8;--muted-fg:#6e7d7d;--primary:#489fd4;--primary-soft:#dcece2;--accent:#b68128;--accent-soft:#f2e8ce;--danger:#bf5549;--blue:#4d8fe8;--shadow:0 6px 16px rgba(25,50,53,.06);--sans:"DM Sans","Trebuchet MS",sans-serif;--serif:Georgia,"Times New Roman",serif;--mono:"DM Mono","Courier New",monospace}
@@ -29,7 +29,7 @@
   <style>
     /* Use the deployed chart artwork for the in-app brand mark as well as bookmarks. */
     .brand-mark {
-      background-image: url("./icons/apple-touch-icon.png?v=chart-icon-20260922");
+      background-image: url("./apple-touch-icon.png?v=chart-icon-20260922");
       background-size: cover;
       background-position: center;
     }
@@ -46,6 +46,41 @@
     .pension-chart .chart-axis {
       font-size: 12px;
       font-weight: 600;
+    }
+  </style>
+  <style>
+    :root { --card: #eef0f2; --border: #d9dfe5; --muted-fg: #35424a; }
+    .brand-mark {
+      border-radius: 12px;
+      background-color: var(--card);
+      background-image: url("data:image/png;base64,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");
+      background-position: center;
+      background-size: 40px 40px;
+      background-repeat: no-repeat;
+    }
+    .brand-mark svg { display: none !important; }
+    .button.primary { color: var(--fg); }
+    .result-card { border-color: transparent; background: var(--bg); }
+    .chart-axis { fill: #445159; }
+    @media (max-width: 760px) {
+      .main {
+        width: 100%;
+        padding: calc(14px + env(safe-area-inset-top, 0px))
+          max(10px, env(safe-area-inset-right, 0px))
+          calc(46px + env(safe-area-inset-bottom, 0px))
+          max(10px, env(safe-area-inset-left, 0px));
+      }
+      .content { max-width: none; }
+      .topbar { margin-bottom: 20px; }
+      .panel { margin-top: 18px; border: 0; border-radius: 19px; box-shadow: 0 3px 14px rgba(20, 35, 48, .07); }
+      .panel-head, .projection-head { padding-right: 12px; padding-left: 12px; }
+      .item-row { gap: 7px; padding: 14px 10px; }
+      .item-name span, .item-price span, .item-value span, .item-value small,
+      .field-note, .snapshot-note, .hero-note { font-size: 11px; line-height: 1.4; }
+      .projection-body { padding: 14px; }
+      .result-card { border-radius: 13px; }
+      .chart-wrap { padding: 12px 0; }
+      .appearance-panel { border: 0; border-radius: 16px; padding: 14px; box-shadow: none; }
     }
   </style>
 </head>
@@ -115,11 +150,19 @@ const DATA={
   ],
   cashItems:[{id:"cash-isa",name:"Cash ISA",amount:5000,annualInterestPct:4.5,forecastRatePct:3.5,depositDate:"2023-01-01",monthlyDeposit:100}],
   projection:{projectionStartDate:"",dateOfBirth:"",retirementDate:"2044-09-05",drawdownStartDate:"2042-09-05",drawdownTarget:25,annualFundGrowth:6.5,annualDrawdown:18000,fundChargesPct:0.1,monthlyContribution:250,continueTopUpPostRetirement:false,lumpSumWithdrawalDate:"2052-09-05",lumpSumWithdrawal:null},
-  appearance:{background:"#ffffff",card:"#c2c2c2",text:"#000000",accent:"#489fd4",font:"classic",headingBold:false}
+  appearance:{background:"#ffffff",card:"#eef0f2",text:"#000000",accent:"#489fd4",font:"rounded",headingBold:true}
 };
 const STORAGE_KEY="pocket-pension-standalone-v2";
 const API_BASE=String(DATA.apiBaseUrl||"").replace(/\/$/,"");
 let state=loadState(),modal=null;
+const PREVIOUS_APPEARANCES=[
+  {background:"#ffffff",card:"#c2c2c2",text:"#000000",accent:"#489fd4",font:"classic",headingBold:false},
+  {background:"#f4f0e7",card:"#faf8f2",text:"#263d40",accent:"#2e7567",font:"classic",headingBold:false}
+];
+if(state.appearance&&PREVIOUS_APPEARANCES.some(previous=>Object.keys(previous).every(key=>state.appearance[key]===previous[key]))){
+  state.appearance={...DATA.appearance};
+  saveState();
+}
 
 function addYears(date,years){const d=new Date(date+"T00:00:00");d.setFullYear(d.getFullYear()+Number(years||0));return d.toISOString().slice(0,10)}
 function loadState(){
