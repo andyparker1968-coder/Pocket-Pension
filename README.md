@@ -8,9 +8,10 @@ Cloudflare Worker:
 Pocket Pension → https://yahoo-proxy.andyparker1968.workers.dev → Yahoo Finance
 ```
 
-The ZIP matches the Pocket ISA package layout: `index.html`, this README, and
-the root-level `apple-touch-icon.png`. The HTML uses that image for the in-app
-mark and home-screen icon.
+The ZIP contains exactly three files: `index.html`, this README, and one
+root-level `apple-touch-icon.png`. The browser favicon is embedded in the HTML;
+the Apple Touch image is the only external icon asset and is used for iPhone
+bookmarks and the in-app mark.
 
 The refreshed standalone appearance uses light-grey panels (`#eef0f2`), dark
 supporting text, a Rounded font, and bold labels and totals. The phone layout

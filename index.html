@@ -4,11 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Pocket Pension — an offline retirement portfolio tracker and projection tool.">
-  <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon.png?v=chart-icon-20260922">
-  <link rel="shortcut icon" href="./icons/favicon.ico?v=chart-icon-20260922">
-  <link rel="icon" type="image/png" sizes="180x180" href="./icons/apple-touch-icon.png?v=chart-icon-20260922">
-  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=chart-icon-20260922">
-  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="./icons/apple-touch-icon.png?v=chart-icon-20260922">
+  <!--
+  <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,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">
+  -->
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=chart-icon-20260922">
   <title>Pocket Pension · Offline copy</title>
   <style>
     :root{--bg:#ffffff;--fg:#000000;--card:#c2c2c2;--border:#ded8cb;--muted:#e7e2d8;--muted-fg:#6e7d7d;--primary:#489fd4;--primary-soft:#dcece2;--accent:#b68128;--accent-soft:#f2e8ce;--danger:#bf5549;--blue:#4d8fe8;--shadow:0 6px 16px rgba(25,50,53,.06);--sans:"DM Sans","Trebuchet MS",sans-serif;--serif:Georgia,"Times New Roman",serif;--mono:"DM Mono","Courier New",monospace}
@@ -29,7 +28,7 @@
   <style>
     /* Use the deployed chart artwork for the in-app brand mark as well as bookmarks. */
     .brand-mark {
-      background-image: url("./icons/apple-touch-icon.png?v=chart-icon-20260922");
+      background-image: url("./apple-touch-icon.png?v=chart-icon-20260922");
       background-size: cover;
       background-position: center;
     }
@@ -83,6 +82,7 @@
       .appearance-panel { border: 0; border-radius: 16px; padding: 14px; box-shadow: none; }
     }
   </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,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">
 </head>
 <body>
 <div class="app-shell"><main class="main"><div class="content">
@@ -415,5 +415,8 @@ document.getElementById("lumpSumWithdrawalDate").addEventListener("change",event
 render();
 if(API_BASE&&state.holdings.length&&(!state.history||state.history.version!==5||state.history.portfolioKey!==portfolioHistoryKey()||state.history.requestedFrom!==earliestPortfolioDate()))void refreshPortfolioHistory(false).catch(()=>{});
 </script>
+<footer style="box-sizing:border-box;max-width:1200px;margin:24px auto 0;padding:16px 12px;border-top:1px solid rgba(100,110,110,.22);color:var(--muted-fg,var(--muted,#68726d));font:11px/1.5 sans-serif;text-align:center">
+  Copyright &copy; 2026 <a href="https://yourpocketapps.com" style="color:inherit;text-decoration:none">YourPocketApps.com</a>. All rights reserved. &middot; Version 2.0.0.1
+</footer>
 </body>
 </html>
